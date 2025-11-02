@@ -12,7 +12,7 @@
 *Real-time simulation of continuum and retractive soft-robot (Python version shown).*
 
 
-<img src="https://github.com/user-attachments/assets/07255de5-8e7a-478f-8c10-1338df31746a" width="300"> ![Soft-Robot Simulation](https://github.com/Rodolfo9706/Continum-and-retractive-SOFT-ROBOT/blob/main/matlabgif.gif)
+![Soft-Robot Simulation](https://github.com/Rodolfo9706/Continum-and-retractive-SOFT-ROBOT/blob/main/matlabgif.gif)
 *Real-time simulation of continuum and retractive soft-robot (Matlab version shown).*
 
 ---
