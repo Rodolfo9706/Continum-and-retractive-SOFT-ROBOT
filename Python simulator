@@ -1,0 +1,577 @@
+# soft_arm_full.py
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.io as sio
+import os
+
+os.chdir(r"C:\Users")
+
+# ----------------- TRAYECTORIA CIRCULAR -----------------
+R = 40.0                  # radio del círculo (mm)
+omega = 3*np.pi/20.0      # velocidad angular (rad/s)
+Xc, Yc, Zc = -32.35, 37.63, 75.20
+dt = 0.01
+Tsim = 17  
+max_iter = int(round(Tsim/dt))
+
+# ----------------- INICIALIZACIÓN -----------------
+L = np.array([60., 60., 60., 60., 35., 50.], dtype=float)
+L0 = L.copy()
+Xprev = np.zeros(3)
+Kp, Kd = 50.0, 0.03
+max_dL = 8.0
+tol_pos = 0.01
+
+hist_X = np.zeros((3, max_iter))
+hist_L = np.zeros((6, max_iter))
+hist_err_cart = np.zeros((3, max_iter))  # errores cartesianos
+
+# ----------------- FIGURA 3D -----------------
+fig = plt.figure(1, figsize=(6,5))
+ax = fig.add_subplot(111, projection='3d')
+ax.set_xlabel('X (mm)')
+ax.set_ylabel('Y (mm)')
+ax.set_zlabel('Z (mm)')
+ax.set_title('Soft Arm con control cartesiano PD')
+ax.grid(True)
+try: ax.set_box_aspect([1,1,1])
+except: pass
+
+# ---------- FIGURA 2D LONGITUDES -----------------
+fig2, axL = plt.subplots(figsize=(6,4))
+axL.set_xlabel('Tiempo (s)')
+axL.set_ylabel('Longitudes (mm)')
+axL.set_title('Longitudes de tendones')
+linesL = []
+colors = ['r','g','b','c','m','y']
+for i in range(6):
+    line, = axL.plot([], [], label=f'L{i+1}', color=colors[i])
+    linesL.append(line)
+axL.legend()
+
+# ---------- FIGURA 2D ERRORES CARTESIANOS -----------------
+fig3, axErr = plt.subplots(figsize=(6,4))
+axErr.set_xlabel('Tiempo (s)')
+axErr.set_ylabel('Error (mm)')
+axErr.set_title('Errores cartesianos del efector final')
+linesErr = []
+err_colors = ['r','g','b']
+for i in range(3):
+    line, = axErr.plot([], [], '--', label=f'Error {["X","Y","Z"][i]}', color=err_colors[i], alpha=0.7)
+    linesErr.append(line)
+axErr.legend()
+
+# ---------- FIGURA 2D POSICIÓN EFECTOR -----------------
+fig4, axXYZ = plt.subplots(figsize=(6,4))
+axXYZ.set_xlabel('Tiempo (s)')
+axXYZ.set_ylabel('Posición (mm)')
+axXYZ.set_title('Trayectoria XYZ')
+
+# Líneas para efector final
+lineX, = axXYZ.plot([], [], label='X efector', color='r')
+lineY, = axXYZ.plot([], [], label='Y efector', color='g')
+lineZ, = axXYZ.plot([], [], label='Z efector', color='b')
+
+# Líneas para trayectoria deseada (círculo)
+lineXd, = axXYZ.plot([], [], '--', label='X deseada', color='r', alpha=0.5)
+lineYd, = axXYZ.plot([], [], '--', label='Y deseada', color='g', alpha=0.5)
+lineZd, = axXYZ.plot([], [], '--', label='Z deseada', color='b', alpha=0.5)
+
+axXYZ.legend()
+t_hist = []
+Xdes_hist = []
+Ydes_hist = []
+Zdes_hist = []
+
+plt.ion()
+plt.show()
+
+
+# ----------------- FUNCIONES AUXILIARES -----------------
+def forward_end(Lv):
+    """
+    Cinemática directa (adaptada de MATLAB).
+    Lv: array([L1..L6])
+    Devuelve (Xf, Yf, Zf) (efector final world coordinates).
+    """
+    L1, L2, L3, L4, L5, L6 = lv = Lv
+    # ---- Primer segmento ----
+    Lc = (L1 + L2 + L3) / 3.0
+    r = 11.4
+    DL1, DL2, DL3 = Lc - L1, Lc - L2, Lc - L3
+    Xdir = DL1 + DL2*np.cos(2*np.pi/3) + DL3*np.cos(4*np.pi/3)
+    Ydir = DL2*np.sin(2*np.pi/3) + DL3*np.sin(4*np.pi/3)
+    alfa = np.arctan2(Ydir, Xdir)
+    rp1 = r * np.cos(alfa)
+    R1 = (Lc * rp1) / (Lc - L1 + 1e-6)
+    B1 = Lc / (R1 + 1e-12)
+    # aquí en forward_end queremos la posición final del primer segmento (escala)
+    cz3d = R1 * np.sin(B1)
+    cx3d = R1 * (1.0 - np.cos(B1)) * np.cos(alfa)
+    cy3d = R1 * (1.0 - np.cos(B1)) * np.sin(alfa)
+
+    # ---- Segundo segmento ----
+    Lc2 = (L4 + L5 + L6) / 3.0
+    r2 = 15.0
+    d = 1.0/3.0
+    DL4, DL5, DL6 = Lc2 - L4, Lc2 - L5, Lc2 - L6
+    X2dir = DL4*np.cos(d*np.pi) + DL5*np.cos(2/3*np.pi + d*np.pi) + DL6*np.cos(4/3*np.pi + d*np.pi)
+    Y2dir = DL4*np.sin(d*np.pi) + DL5*np.sin(2/3*np.pi + d*np.pi) + DL6*np.sin(4/3*np.pi + d*np.pi)
+    alfa2 = np.arctan2(Y2dir, X2dir)
+    rp4 = r2 * np.cos(alfa2 - d*np.pi)
+    R4 = (Lc2 * rp4) / (Lc2 - L4 + 1e-6)
+    B4 = Lc2 / (R4 + 1e-12)
+    cz2 = R4 * np.sin(B4)
+    cy2 = R4 * (1.0 - np.cos(B4))
+    cx2 = cy2 * np.cos(alfa2)
+
+    # ---- Transformación del segundo segmento (homogénea) ----
+    Mc3d = np.array([cx2, cy2*np.sin(alfa2), cz2, 1.0])
+    theta_x = 0.0
+    theta_y = B1
+    theta_z = -alfa
+    theta_z2 = alfa
+    tx, ty, tz = cx3d, cy3d, cz3d
+
+    # Matrices homogéneas
+    Rx = np.array([[1,0,0,0],
+                   [0,np.cos(theta_x),-np.sin(theta_x),0],
+                   [0,np.sin(theta_x), np.cos(theta_x),0],
+                   [0,0,0,1]])
+    Ry = np.array([[np.cos(theta_y),0,np.sin(theta_y),0],
+                   [0,1,0,0],
+                   [-np.sin(theta_y),0,np.cos(theta_y),0],
+                   [0,0,0,1]])
+    Rz = np.array([[np.cos(theta_z),-np.sin(theta_z),0,0],
+                   [np.sin(theta_z), np.cos(theta_z),0,0],
+                   [0,0,1,0],
+                   [0,0,0,1]])
+    Rz2 = np.array([[np.cos(theta_z2),-np.sin(theta_z2),0,0],
+                    [np.sin(theta_z2), np.cos(theta_z2),0,0],
+                    [0,0,1,0],
+                    [0,0,0,1]])
+    T = np.array([[1,0,0,tx],
+                  [0,1,0,ty],
+                  [0,0,1,tz],
+                  [0,0,0,1]])
+    H = T @ Rz2 @ Ry @ Rz
+    Pf = (H @ Mc3d.reshape(4,1)).flatten()
+    Xf, Yf, Zf = Pf[0], Pf[1], Pf[2]
+    return float(Xf), float(Yf), float(Zf)
+
+def jacobian_numeric(Lv):
+    """
+    Jacobiano numérico por diferencias finitas 3x6
+    """
+    eps = 1e-3
+    x0, y0, z0 = forward_end(Lv)
+    f0 = np.array([x0, y0, z0])
+    J = np.zeros((3, len(Lv)))
+    for i in range(len(Lv)):
+        Lp = Lv.copy()
+        Lp[i] += eps
+        xp, yp, zp = forward_end(Lp)
+        fp = np.array([xp, yp, zp])
+        J[:, i] = (fp - f0) / eps
+    return J
+
+def softArmForward(Lv):
+    """
+    Versión extendida con graficado completo (círculos, arcos, tensores, transformaciones, proyecciones).
+    Esta función dibuja sobre la figura global 'ax'.
+    """
+    L1, L2, L3, L4, L5, L6 = Lv.copy()
+
+    # --- evitar indeterminaciones ---
+    Lc = (L1 + L2 + L3) / 3.0
+    if (L1 == L2) and (L2 == L3):
+        Lc += 1e-4
+    if abs(Lc - L1) < 1e-12:
+        L1 += 1e-4; Lc = (L1 + L2 + L3)/3.0
+    if abs(Lc - L2) < 1e-12:
+        L2 += 1e-4; Lc = (L1 + L2 + L3)/3.0
+    if abs(Lc - L3) < 1e-12:
+        L3 += 1e-4; Lc = (L1 + L2 + L3)/3.0
+
+    Lc2 = (L4 + L5 + L6) / 3.0
+    if (L4 == L5) and (L5 == L6):
+        Lc2 += 1e-4
+    if abs(Lc2 - L4) < 1e-12:
+        L4 += 1e-4; Lc2 = (L4 + L5 + L6)/3.0
+    if abs(Lc2 - L5) < 1e-12:
+        L5 += 1e-4; Lc2 = (L4 + L5 + L6)/3.0
+    if abs(Lc2 - L6) < 1e-12:
+        L6 += 1e-4; Lc2 = (L4 + L5 + L6)/3.0
+
+    # Parámetros
+    r = 11.4
+
+    # Primer segmento: tensores y arcos
+    DL1, DL2, DL3 = Lc - L1, Lc - L2, Lc - L3
+    Xdir = DL1 + DL2*np.cos(2*np.pi/3) + DL3*np.cos(4*np.pi/3)
+    Ydir = DL2*np.sin(2*np.pi/3) + DL3*np.sin(4*np.pi/3)
+    alfa = np.arctan2(Ydir, Xdir)
+
+    rp1 = r * np.cos(alfa)
+    rp2 = r * np.cos(alfa + 4*np.pi/3)
+    rp3 = r * np.cos(alfa + 2*np.pi/3)
+
+    R1 = (Lc * rp1) / (Lc - L1 + 1e-6)
+    R2 = (Lc * rp2) / (Lc - L2 + 1e-6)
+    R3 = (Lc * rp3) / (Lc - L3 + 1e-6)
+
+    B1 = Lc / (R1 + 1e-12); B2 = Lc / (R2 + 1e-12); B3 = Lc / (R3 + 1e-12)
+
+    theta1 = np.linspace(0.0, B1, 100)
+    theta2 = np.linspace(0.0, B2, 100)
+    theta3 = np.linspace(0.0, B3, 100)
+
+    cz = R1 * np.sin(theta1)
+    cy = R1 * (1.0 - np.cos(theta1))
+    cx = np.zeros_like(theta1)
+
+    z1 = (R1 - rp1) * np.sin(theta1)
+    y1 = (R1 - rp1) * (1.0 - np.cos(theta1)) + rp1
+    x1 = np.zeros_like(theta1)
+
+    z2 = (R2 - rp2) * np.sin(theta2)
+    y2 = (R2 - rp2) * (1.0 - np.cos(theta2)) + rp2
+    x2 = np.zeros_like(theta2)
+
+    z3 = (R3 - rp3) * np.sin(theta3)
+    y3 = (R3 - rp3) * (1.0 - np.cos(theta3)) + rp3
+    x3 = np.zeros_like(theta3)
+
+    cz3d = cz
+    cx3d = cy * np.cos(alfa)
+    cy3d = cy * np.sin(alfa)
+
+    z13d = z1
+    x13d = y1 * np.cos(alfa) - (rp1*np.cos(alfa)) + r
+    y13d = y1 * np.sin(alfa) - (rp1*np.sin(alfa))
+
+    z23d = z2
+    x23d = y2 * np.cos(alfa) - (rp2*np.cos(alfa)) + r*np.cos(2*np.pi/3)
+    y23d = y2 * np.sin(alfa) - (rp2*np.sin(alfa)) + r*np.sin(2*np.pi/3)
+
+    z33d = z3
+    x33d = y3 * np.cos(alfa) - (rp3*np.cos(alfa)) + r*np.cos(4*np.pi/3)
+    y33d = y3 * np.sin(alfa) - (rp3*np.sin(alfa)) + r*np.sin(4*np.pi/3)
+
+    # Segundo segmento
+    r2 = 15.0
+    DL4, DL5, DL6 = Lc2 - L4, Lc2 - L5, Lc2 - L6
+    d = 1.0/3.0
+    X2dir = DL4*np.cos(d*np.pi) + DL5*np.cos(2/3*np.pi + d*np.pi) + DL6*np.cos(4/3*np.pi + d*np.pi)
+    Y2dir = DL4*np.sin(d*np.pi) + DL5*np.sin(2/3*np.pi + d*np.pi) + DL6*np.sin(4/3*np.pi + d*np.pi)
+    alfa2 = np.arctan2(Y2dir, X2dir)
+
+    rp4 = r2 * np.cos(alfa2 - d*np.pi)
+    rp5 = r2 * np.cos(alfa2 + 4/3*np.pi - d*np.pi)
+    rp6 = r2 * np.cos(alfa2 + 2/3*np.pi - d*np.pi)
+
+    R4 = (Lc2 * rp4) / (Lc2 - L4 + 1e-6)
+    R5 = (Lc2 * rp5) / (Lc2 - L5 + 1e-6)
+    R6 = (Lc2 * rp6) / (Lc2 - L6 + 1e-6)
+
+    B4 = Lc2 / (R4 + 1e-12); B5 = Lc2 / (R5 + 1e-12); B6 = Lc2 / (R6 + 1e-12)
+
+    theta4 = np.linspace(0.0, B4, 100)
+    theta5 = np.linspace(0.0, B5, 100)
+    theta6 = np.linspace(0.0, B6, 100)
+
+    cz2 = R4 * np.sin(theta4)
+    cy2 = R4 * (1.0 - np.cos(theta4))
+    cx2 = np.zeros_like(theta4)
+
+    z4 = (R4 - rp4) * np.sin(theta4)
+    y4 = (R4 - rp4) * (1.0 - np.cos(theta4)) + rp4
+    x4 = np.zeros_like(theta4)
+
+    z5 = (R5 - rp5) * np.sin(theta5)
+    y5 = (R5 - rp5) * (1.0 - np.cos(theta5)) + rp5
+    x5 = np.zeros_like(theta5)
+
+    z6 = (R6 - rp6) * np.sin(theta6)
+    y6 = (R6 - rp6) * (1.0 - np.cos(theta6)) + rp6
+    x6 = np.zeros_like(theta6)
+
+    cz23d = cz2
+    cx23d = cy2 * np.cos(alfa2)
+    cy23d = cy2 * np.sin(alfa2)
+
+    z43d = z4
+    x43d = y4 * np.cos(alfa2) - rp4*np.cos(alfa2) + r2*np.cos(d*np.pi)
+    y43d = y4 * np.sin(alfa2) - rp4*np.sin(alfa2) + r2*np.sin(d*np.pi)
+
+    z53d = z5
+    x53d = y5 * np.cos(alfa2) - rp5*np.cos(alfa2) + r2*np.cos(2/3*np.pi + d*np.pi)
+    y53d = y5 * np.sin(alfa2) - rp5*np.sin(alfa2) + r2*np.sin(2/3*np.pi + d*np.pi)
+
+    z63d = z6
+    x63d = y6 * np.cos(alfa2) - rp6*np.cos(alfa2) + r2*np.cos(4/3*np.pi + d*np.pi)
+    y63d = y6 * np.sin(alfa2) - rp6*np.sin(alfa2) + r2*np.sin(4/3*np.pi + d*np.pi)
+
+    # Transformación del segundo segmento
+    Mc3d = np.vstack((cx23d, cy23d, cz23d, np.ones_like(cx23d))).T  # Nx4
+
+    theta_x = 0.0; theta_y = B1; theta_z = -alfa; theta_z2 = alfa
+    tx = cx3d[-1] if np.ndim(cx3d) else cx3d
+    ty = cy3d[-1] if np.ndim(cy3d) else cy3d
+    tz = cz3d[-1] if np.ndim(cz3d) else cz3d
+
+    Rx = np.array([[1,0,0,0],
+                   [0,np.cos(theta_x),-np.sin(theta_x),0],
+                   [0,np.sin(theta_x), np.cos(theta_x),0],
+                   [0,0,0,1]])
+    Ry = np.array([[np.cos(theta_y),0,np.sin(theta_y),0],
+                   [0,1,0,0],
+                   [-np.sin(theta_y),0,np.cos(theta_y),0],
+                   [0,0,0,1]])
+    Rz = np.array([[np.cos(theta_z),-np.sin(theta_z),0,0],
+                   [np.sin(theta_z), np.cos(theta_z),0,0],
+                   [0,0,1,0],[0,0,0,1]])
+    Rz2 = np.array([[np.cos(theta_z2),-np.sin(theta_z2),0,0],
+                    [np.sin(theta_z2), np.cos(theta_z2),0,0],
+                    [0,0,1,0],[0,0,0,1]])
+    T = np.array([[1,0,0,tx],[0,1,0,ty],[0,0,1,tz],[0,0,0,1]])
+    H = T @ Rz2 @ Ry @ Rz
+
+    Mc3d_T = (H @ Mc3d.T).T
+    M43d = np.vstack((x43d, y43d, z43d, np.ones_like(x43d))).T
+    M53d = np.vstack((x53d, y53d, z53d, np.ones_like(x53d))).T
+    M63d = np.vstack((x63d, y63d, z63d, np.ones_like(x63d))).T
+    M43d_T = (H @ M43d.T).T
+    M53d_T = (H @ M53d.T).T
+    M63d_T = (H @ M63d.T).T
+
+    # ---------- GRAFICADO ----------
+    ax.cla()
+    ax.set_xlabel('X (mm)')
+    ax.set_ylabel('Y (mm)')
+    ax.set_zlabel('Z (mm)')
+    ax.set_title('soft arm')
+    ax.grid(True)
+    ax.set_xlim([-100,100])
+    ax.set_ylim([-100,100])
+    ax.set_zlim([-150, 0])   # ahora el brazo cuelga hacia abajo
+
+    try:
+        ax.set_box_aspect([1,1,1])
+    except Exception:
+        pass
+    ax.view_init(30, -45)
+    #ax.view_init(elev=60, azim=-45)
+
+    
+        # ---------------- INVERTIR Z PARA COLGAR DEL TECHO ----------------
+    cz3d = -cz3d
+    cz23d = -cz23d
+    Mc3d_T[:,2] = -Mc3d_T[:,2]
+    M43d_T[:,2] = -M43d_T[:,2]
+    M53d_T[:,2] = -M53d_T[:,2]
+    M63d_T[:,2] = -M63d_T[:,2]
+
+    z13d = -z13d
+    z23d = -z23d
+    z33d = -z33d
+    z43d = -z43d
+    z53d = -z53d
+    z63d = -z63d
+
+
+    # Primer segmento: trayectoria promedio (negra)
+    if len(cx3d) > 0:
+        ax.plot(cx3d, cy3d, cz3d, color='k', linewidth=2)
+
+    # círculos distribuidos a lo largo del primer segmento
+    n_circulos = 4
+    if len(cx3d) > 0:
+        idx = np.round(np.linspace(0, len(cx3d)-1, n_circulos)).astype(int)
+    else:
+        idx = np.array([], dtype=int)
+
+    radio_circulo = r
+    for i in range(len(idx)):
+        P = np.array([cx3d[idx[i]], cy3d[idx[i]], cz3d[idx[i]]])
+        if i < len(idx)-1:
+            Pn = np.array([cx3d[idx[i+1]], cy3d[idx[i+1]], cz3d[idx[i+1]]])
+            v = Pn - P
+        else:
+            Pp = np.array([cx3d[idx[i-1]], cy3d[idx[i-1]], cz3d[idx[i-1]]]) if i>0 else np.array([1.0,0.0,0.0])
+            v = P - Pp
+        if np.linalg.norm(v) < 1e-9:
+            v = np.array([1.0,0.0,0.0])
+        v = v / np.linalg.norm(v)
+        if np.allclose(np.abs(v), np.array([1.0,0.0,0.0]), atol=1e-3):
+            a = np.array([0.0,1.0,0.0])
+        else:
+            a = np.array([1.0,0.0,0.0])
+        u = np.cross(v, a); u = u / np.linalg.norm(u)
+        w = np.cross(v, u); w = w / np.linalg.norm(w)
+        theta_circ = np.linspace(0.0, 2*np.pi, 120)
+        circ = (P.reshape(3,1) + radio_circulo*(np.outer(u, np.cos(theta_circ)) + np.outer(w, np.sin(theta_circ))))
+        ax.plot(circ[0,:], circ[1,:], circ[2,:], color='b', linewidth=2.5)
+
+    # tensores externos primer segmento
+    if len(x13d) > 0:
+        ax.plot(x13d, y13d, z13d, color='c', linewidth=1.5)
+    if len(x23d) > 0:
+        ax.plot(x23d, y23d, z23d, color='g', linewidth=1.5)
+    if len(x33d) > 0:
+        ax.plot(x33d, y33d, z33d, color='m', linewidth=1.5)
+
+    # Guardar primer segmento
+    seg1X, seg1Y, seg1Z = cx3d, cy3d, cz3d
+
+    # Brazo transformado (segmento 2)
+    if Mc3d_T.shape[0] > 0:
+        ax.plot(Mc3d_T[:,0], Mc3d_T[:,1], Mc3d_T[:,2], color='b', linewidth=2)
+    idx2 = np.round(np.linspace(0, Mc3d_T.shape[0]-1, n_circulos)).astype(int) if Mc3d_T.shape[0]>0 else np.array([], dtype=int)
+    for i in range(len(idx2)):
+        P = Mc3d_T[idx2[i], :3]
+        if i < len(idx2)-1:
+            Pn = Mc3d_T[idx2[i+1], :3]
+            v = Pn - P
+        else:
+            Pp = Mc3d_T[idx2[i-1], :3] if i>0 else np.array([1.0,0.0,0.0])
+            v = P - Pp
+        if np.linalg.norm(v) < 1e-9:
+            v = np.array([1.0,0.0,0.0])
+        v = v / np.linalg.norm(v)
+        if np.allclose(np.abs(v), np.array([1.0,0.0,0.0]), atol=1e-3):
+            a = np.array([0.0,1.0,0.0])
+        else:
+            a = np.array([1.0,0.0,0.0])
+        u = np.cross(v, a); u = u / np.linalg.norm(u)
+        w = np.cross(v, u); w = w / np.linalg.norm(w)
+        theta_circ = np.linspace(0.0, 2*np.pi, 120)
+        circ = (P.reshape(3,1) + radio_circulo*(np.outer(u, np.cos(theta_circ)) + np.outer(w, np.sin(theta_circ))))
+        ax.plot(circ[0,:], circ[1,:], circ[2,:], color='r', linewidth=2.5)
+
+    # tensores y trayectoria segundo segmento
+    if Mc3d_T.shape[0] > 0:
+        ax.plot(Mc3d_T[:,0], Mc3d_T[:,1], Mc3d_T[:,2], color='k', linewidth=1.5)
+    if M43d_T.shape[0] > 0:
+        ax.plot(M43d_T[:,0], M43d_T[:,1], M43d_T[:,2], color='c', linewidth=1.5)
+    if M53d_T.shape[0] > 0:
+        ax.plot(M53d_T[:,0], M53d_T[:,1], M53d_T[:,2], color='g', linewidth=1.5)
+    if M63d_T.shape[0] > 0:
+        ax.plot(M63d_T[:,0], M63d_T[:,1], M63d_T[:,2], color='m', linewidth=1.5)
+
+    # posición final efector (opcional print)
+    if Mc3d_T.shape[0] > 0:
+        Xf, Yf, Zf = Mc3d_T[-1,0], Mc3d_T[-1,1], Mc3d_T[-1,2]
+        # print(f'Posición final del efector: X={Xf:.2f}, Y={Yf:.2f}, Z={Zf:.2f}')
+
+    # Proyecciones (pegadas a los muros)
+    seg2X, seg2Y, seg2Z = (Mc3d_T[:,0], Mc3d_T[:,1], Mc3d_T[:,2]) if Mc3d_T.shape[0]>0 else (np.array([]),np.array([]),np.array([]))
+    xl = ax.get_xlim(); yl = ax.get_ylim(); zl = ax.get_zlim()
+    if seg1X.size:
+        ax.plot(seg1X, seg1Y, zl[0]*np.ones_like(seg1Z), '--', linewidth=1.0, color='0.3')
+        ax.plot(seg1X, yl[0]*np.ones_like(seg1X), seg1Z, '--', linewidth=1.0, color='0.3')
+        ax.plot(xl[0]*np.ones_like(seg1Y), seg1Y, seg1Z, '--', linewidth=1.0, color='0.3')
+    if seg2X.size:
+        ax.plot(seg2X, seg2Y, zl[0]*np.ones_like(seg2Z), '--', linewidth=1.0, color='0.3')
+        ax.plot(seg2X, yl[0]*np.ones_like(seg2X), seg2Z, '--', linewidth=1.0, color='0.3')
+        ax.plot(xl[0]*np.ones_like(seg2Y), seg2Y, seg2Z, '--', linewidth=1.0, color='0.3')
+
+    plt.draw()
+# ----------------- LOOP DE CONTROL -----------------
+for k in range(1, max_iter+1):
+    t = (k-1) * dt
+
+    # Posición deseada
+    Xdes = np.array([Xc + R*np.cos(omega*t),
+                     Yc + R*np.sin(omega*t),
+                     Zc])
+
+    # Cinemática directa
+    Xf, Yf, Zf = forward_end(L)
+    Xcur = np.array([Xf, Yf, Zf])
+
+    # Error cartesiano
+    e = Xdes - Xcur
+
+    # Velocidad cartesiana
+    if k == 1:
+        Xprev = Xcur.copy()
+    Xdot = (Xcur - Xprev)/dt
+
+    # Jacobiano
+    J = jacobian_numeric(L)
+
+    # Ley de control PD
+    Ldot = Kp*(J.T @ e) - Kd*(J.T @ Xdot)
+    Ldot = np.clip(Ldot, -max_dL, max_dL)
+
+    # Integración
+    L = L + Ldot*dt
+
+    # Guardar históricos
+    hist_X[:, k-1] = Xcur
+    hist_L[:, k-1] = L
+    hist_err_cart[:, k-1] = e
+    Xprev = Xcur.copy()
+    t_hist.append(t)
+    Xdes_hist.append(Xdes[0])
+    Ydes_hist.append(Xdes[1])
+    Zdes_hist.append(Xdes[2])
+
+    # Graficar 3D cada 0.1 s
+    if k % int(round(0.1/dt)) == 0:
+        softArmForward(L)
+
+    # Actualizar gráficas 2D
+    # Convertir listas a arrays para evitar problemas de tamaño
+    t_arr = np.array(t_hist)
+    lineX.set_data(t_arr, hist_X[0, :k])
+    lineY.set_data(t_arr, hist_X[1, :k])
+    lineZ.set_data(t_arr, hist_X[2, :k])
+    lineXd.set_data(t_arr, np.array(Xdes_hist))
+    lineYd.set_data(t_arr, np.array(Ydes_hist))
+    lineZd.set_data(t_arr, np.array(Zdes_hist))
+
+    for i in range(6):
+        linesL[i].set_data(t_arr, hist_L[i, :k])
+    axL.set_xlim(0, max(10, t))
+    axL.set_ylim(np.min(hist_L[:, :k])-5, np.max(hist_L[:, :k])+5)
+
+    for i in range(3):
+        linesErr[i].set_data(t_arr, hist_err_cart[i, :k])
+    axErr.set_xlim(0, max(10, t))
+    axErr.set_ylim(np.min(hist_err_cart[:, :k])-1, np.max(hist_err_cart[:, :k])+1)
+
+    # Forzar redibujado
+    axXYZ.relim(); axXYZ.autoscale_view()
+    axL.relim(); axL.autoscale_view()
+    axErr.relim(); axErr.autoscale_view()
+
+    plt.pause(0.001)
+
+    if np.linalg.norm(e) < tol_pos:
+        print(f'Error < {tol_pos:.2f} mm en t={t:.2f} s')
+        break
+# ----------------- GUARDADO DE DATOS -----------------
+data_to_save = {
+    't': np.array(t_hist),
+    'L': hist_L,
+    'Xf': hist_X[0, :],
+    'Yf': hist_X[1, :],
+    'Zf': hist_X[2, :],
+    'Xd': np.array(Xdes_hist),
+    'Yd': np.array(Ydes_hist),
+    'Zd': np.array(Zdes_hist),
+    'errX': hist_err_cart[0, :],
+    'errY': hist_err_cart[1, :],
+    'errZ': hist_err_cart[2, :],
+}
+sio.savemat('soft_arm_data.mat', data_to_save)
+print("Datos guardados correctamente en 'soft_arm_data.mat'")
+
+print("Ruta completa del archivo guardado:", os.path.abspath('soft_arm_data.mat'))
+
+plt.ioff()
+plt.show()
+
+
