@@ -8,7 +8,7 @@
 
 ## 🖼️ Demo
 
-![Soft-Robot Simulation](https://user-images.githubusercontent.com/yourusername/demo.gif)  
+![Soft-Robot Simulation](https://github.com/Rodolfo9706/Continum-and-retractive-SOFT-ROBOT/blob/main/pythongif.gif)
 *Real-time simulation of continuum and retractive soft-robot (Python version shown).*
 
 
