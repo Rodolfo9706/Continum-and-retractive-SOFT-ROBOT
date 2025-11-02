@@ -32,7 +32,7 @@
 ```bash
 # Clone the repository
 git clone https://github.com/Rodolfo9706/Continum-and-retractive-SOFT-ROBOT.git
-cd Continum-and-retractive-SOFT-ROBOT
+cd Continuum-and-retractive-SOFT-ROBOT
 
 # Run the Python simulator
 python Pythonsimulator.py
