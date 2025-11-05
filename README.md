@@ -3,6 +3,11 @@
 ## trajectory tracking tests
 https://github.com/user-attachments/assets/4d3c9b39-1065-4e82-95a6-86aa628ff56f
 
+## Design and initial tests with gripper
+
+https://github.com/user-attachments/assets/77efa303-a89e-49ec-8055-fad9cd1d878e
+
+
 **Python & MATLAB simulator** for continuous robots. Includes forward/inverse kinematics, Jacobian-based control with dynamic extension, and a flexible, modular framework for rapid prototyping, visualization, and experimenting with soft-robot configurations.
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://www.python.org/)
