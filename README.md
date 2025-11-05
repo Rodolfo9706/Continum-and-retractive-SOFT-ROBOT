@@ -36,3 +36,7 @@ cd Continuum-and-retractive-SOFT-ROBOT
 
 # Run the Python simulator
 python Pythonsimulator.py
+
+## trajectory tracking tests
+https://github.com/user-attachments/assets/4d3c9b39-1065-4e82-95a6-86aa628ff56f
+
