@@ -1,5 +1,8 @@
 # Continuum and Retractive Soft-Robot 🤖🌀
 
+## trajectory tracking tests
+https://github.com/user-attachments/assets/4d3c9b39-1065-4e82-95a6-86aa628ff56f
+
 **Python & MATLAB simulator** for continuous robots. Includes forward/inverse kinematics, Jacobian-based control with dynamic extension, and a flexible, modular framework for rapid prototyping, visualization, and experimenting with soft-robot configurations.
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://www.python.org/)
@@ -36,7 +39,4 @@ cd Continuum-and-retractive-SOFT-ROBOT
 
 # Run the Python simulator
 python Pythonsimulator.py
-
-## trajectory tracking tests
-https://github.com/user-attachments/assets/4d3c9b39-1065-4e82-95a6-86aa628ff56f
 
