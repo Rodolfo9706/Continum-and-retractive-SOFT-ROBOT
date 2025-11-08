@@ -17,16 +17,20 @@ https://github.com/user-attachments/assets/77efa303-a89e-49ec-8055-fad9cd1d878e
 ## 🖼️ Demo
 
 <p align="center">
-  <figure style="display:inline-block; text-align:center; margin:10px;">
-    <img src="https://github.com/Rodolfo9706/Continum-and-retractive-SOFT-ROBOT/blob/main/pythongif.gif" alt="Python Soft-Robot Simulation" width="350"/>
-    <figcaption><em>Real-time simulation of continuum and retractive soft-robot (Python version shown).</em></figcaption>
-  </figure>
-  <figure style="display:inline-block; text-align:center; margin:10px;">
-    <img src="https://github.com/Rodolfo9706/Continum-and-retractive-SOFT-ROBOT/blob/main/matlabgif.gif" alt="Matlab Soft-Robot Simulation" width="350"/>
-    <figcaption><em>Real-time simulation of continuum and retractive soft-robot (Matlab version shown).</em></figcaption>
-  </figure>
+  <table>
+    <tr>
+      <td align="center" style="vertical-align:top; padding:10px;">
+        <img src="https://github.com/Rodolfo9706/Continum-and-retractive-SOFT-ROBOT/blob/main/pythongif.gif" alt="Python Soft-Robot Simulation" width="350"/><br>
+        <em>Real-time simulation of continuum and retractive soft-robot<br>(Python version shown).</em>
+      </td>
+      <td align="center" style="vertical-align:top; padding:10px;">
+        <img src="https://github.com/Rodolfo9706/Continum-and-retractive-SOFT-ROBOT/blob/main/matlabgif.gif" alt="Matlab Soft-Robot Simulation" width="350"/><br>
+        <em>Real-time simulation of continuum and retractive soft-robot<br>(Matlab version shown).</em>
+      </td>
+    </tr>
+  </table>
 </p>
----
+
 
 ## 📂 Repository Contents
 
