@@ -5,6 +5,11 @@ https://github.com/user-attachments/assets/4d3c9b39-1065-4e82-95a6-86aa628ff56f
 
 ## Design and initial tests with gripper
 
+
+https://github.com/user-attachments/assets/b68de8bd-0a94-4cb1-9f67-22e39d930db4
+
+
+
 https://github.com/user-attachments/assets/77efa303-a89e-49ec-8055-fad9cd1d878e
 
 
