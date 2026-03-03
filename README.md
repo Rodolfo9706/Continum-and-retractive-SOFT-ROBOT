@@ -13,6 +13,21 @@ https://github.com/user-attachments/assets/b68de8bd-0a94-4cb1-9f67-22e39d930db4
 https://github.com/user-attachments/assets/77efa303-a89e-49ec-8055-fad9cd1d878e
 
 
+## Experimental tendon-sensor temperature tests
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=eRRwj2SqN98" target="_blank">
+    <img src="https://img.youtube.com/vi/eRRwj2SqN98/maxresdefault.jpg" 
+         alt="Continuum and Retractive Soft Robot - Design and Initial Tests" 
+         width="600">
+  </a>
+</p>
+
+<p align="center">
+  <em>Click the image to watch the full video on YouTube.</em>
+</p>
+
+
+
 **Python & MATLAB simulator** for continuum robots. It includes forward/inverse kinematics, Jacobian-based control with dynamic extension, and a flexible, modular framework for rapid prototyping, visualization, and experimenting with soft-robot configurations.
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://www.python.org/)
