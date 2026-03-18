@@ -1,6 +1,9 @@
 # Continuum and Retractive Soft-Robot 🤖🌀
 
 ## trajectory tracking tests
+
+https://github.com/user-attachments/assets/18f60d6d-e9c0-43eb-8540-f763bbf868fc
+
 https://github.com/user-attachments/assets/4d3c9b39-1065-4e82-95a6-86aa628ff56f
 
 ## Design and initial tests with gripper
